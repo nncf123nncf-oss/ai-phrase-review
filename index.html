@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AIっぽい言い回しの見直し</title>
+<meta name="description" content="AIに書かせたお知らせなどを貼ると、締めの決まり文句・言い切りの型・ぼやけた飾り言葉・かたすぎる丁寧さ・記号の消し忘れに印が付き、言い換えを選んで直した文を作れます。AIが書いたかどうかは判定しません。貼った文は保存も送信もしません。">
+<style>
+  :root {
+    --bg: #f5f7fb; --surface: #ffffff; --ink: #141a2b; --ink2: #364056; --ink3: #535d73;
+    --line: #d9dfeb; --line-strong: #7d879c; --accent: #2E4A8C; --accent-ink: #ffffff; --accent-soft: #e3e9f6;
+    --mark: #FFF1B8; --mark-line: #8a6a00; --mark-num: #2E4A8C; --mark-num-ink: #ffffff; --hit: #ffd24a;
+    --chosen: #e5f0e3; --chosen-line: #3d6b35; --notice: #eef1f8;
+    --font: "Hiragino Sans","Yu Gothic","BIZ UDPGothic","Noto Sans JP",system-ui,sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #10131b; --surface: #191e2a; --ink: #eef1f8; --ink2: #ccd3e2; --ink3: #aab3c6;
+      --line: #313a4d; --line-strong: #8a95ab; --accent: #9DB4EA; --accent-ink: #0d1530; --accent-soft: #24304b;
+      --mark: #5A4B12; --mark-line: #ffd970; --mark-num: #9DB4EA; --mark-num-ink: #0d1530; --hit: #8a6d00;
+      --chosen: #1f3320; --chosen-line: #9fd394; --notice: #1c2232;
+    }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 16px; line-height: 1.6; }
+  main { max-width: 1080px; margin: 0 auto; padding: 16px 16px 32px; }
+  h1 { font-size: 22px; line-height: 1.3; margin: 8px 0 8px; }
+  h2 { font-size: 18px; line-height: 1.4; margin: 0 0 10px; }
+  p { margin: 0 0 10px; }
+  .lead { color: var(--ink2); }
+  .small { font-size: 14px; color: var(--ink3); }
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px; margin-bottom: 14px; min-width: 0; }
+  .notice { background: var(--notice); border: 1px solid var(--line-strong); border-left: 6px solid var(--accent); border-radius: 6px; padding: 8px 12px; margin: 0 0 12px; font-size: 14px; color: var(--ink2); }
+  .notice ul { margin: 0; padding-left: 1.2em; }
+  label.f { display: block; font-weight: 600; margin: 0 0 4px; }
+  textarea {
+    display: block; width: 100%; max-width: 100%; min-width: 0; font: inherit; font-size: 16px; line-height: 1.7; color: var(--ink); background: var(--surface);
+    border: 1px solid var(--line-strong); border-radius: 6px; padding: 8px 10px; margin: 0 0 8px; resize: vertical; }
+  #src { min-height: 150px; }
+  #fixed { min-height: 120px; background: var(--bg); }
+  button { font: inherit; font-size: 16px; min-height: 44px; min-width: 44px; padding: 8px 14px; border-radius: 6px; border: 1px solid var(--line-strong);
+    background: var(--surface); color: var(--ink); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; text-align: center; }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+  button:focus-visible, textarea:focus-visible, .mk:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .count { font-size: 20px; font-weight: 700; margin: 0 0 8px; }
+  .count b { font-size: 26px; color: var(--accent); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 4px; padding: 0; list-style: none; }
+  .chips li { font-size: 13px; border: 1px solid var(--line-strong); border-radius: 999px; padding: 2px 10px; color: var(--ink2); background: var(--surface); }
+  .marked { white-space: pre-wrap; overflow-wrap: anywhere; word-break: normal; line-height: 2.1; font-size: 16px; padding: 10px 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; margin: 0; }
+  .mk { background: var(--mark); border-bottom: 2px solid var(--mark-line); border-radius: 2px; padding: 1px 0; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+  .mk.done { background: var(--chosen); border-bottom: 2px dotted var(--chosen-line); }
+  .mk.flash { background: var(--hit); }
+  .mk .n { display: inline-block; min-width: 1.6em; margin-right: 2px; padding: 0 4px; border-radius: 4px; background: var(--mark-num); color: var(--mark-num-ink);
+    font-size: 12px; font-weight: 700; line-height: 1.5; text-align: center; vertical-align: 0.15em; }
+  .empty { color: var(--ink3); margin: 0; }
+  ol.items { list-style: none; margin: 0; padding: 0; }
+  ol.items > li { border-top: 1px solid var(--line); padding: 10px 0; }
+  ol.items > li:first-child { border-top: 0; padding-top: 0; }
+  .it-head { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; }
+  .it-n { display: inline-block; min-width: 1.8em; padding: 0 5px; border-radius: 4px; background: var(--mark-num); color: var(--mark-num-ink); font-size: 13px; font-weight: 700; text-align: center; }
+  .it-cat { font-size: 13px; color: var(--ink3); }
+  .it-line { font-size: 13px; color: var(--ink3); }
+  .it-text { font-weight: 700; overflow-wrap: anywhere; }
+  .it-note { font-size: 14px; color: var(--ink2); margin: 4px 0 6px; }
+  .it-jump { min-height: 44px; padding: 4px 10px; font-size: 14px; border-style: dashed; }
+  .alts { display: flex; flex-wrap: wrap; gap: 6px; }
+  .alts button { font-size: 15px; padding: 6px 12px; }
+  .alts button[aria-pressed="true"] { background: var(--chosen); border: 2px solid var(--chosen-line); font-weight: 700; }
+  .copied { font-size: 14px; color: var(--ink2); min-height: 1.6em; margin: 4px 0 0; }
+  .mw-footer { box-sizing: border-box; width: 100%; max-width: 100%; margin: 24px 0 0; padding: 16px; background: #F7F7F8;
+    border: 1px solid #D8D8DC; border-radius: 6px; color: #3A3A3E; font-family: system-ui, sans-serif; font-size: 12px; line-height: 1.7; }
+  .mw-footer p { margin: 0 0 6px; } .mw-footer p:last-child { margin-bottom: 0; } .mw-footer a { color: #0B5AA6; display: inline-block; padding: 13px 0; }
+  @media (min-width: 880px) {
+    /* 狭い画面は①②③④の順に縦に並ぶ。広い画面は左に①②④、右に③ */
+    .cols { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); grid-template-rows: auto auto auto 1fr; column-gap: 14px; align-items: start; }
+    .a-in { grid-column: 1; grid-row: 1; } .a-mk { grid-column: 1; grid-row: 2; } .a-fx { grid-column: 1; grid-row: 3; }
+    .side { grid-column: 2; grid-row: 1 / span 4; position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow: auto; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>AIっぽい言い回しの見直し</h1>
+  <p class="lead">AIに書かせたお知らせや投稿を貼ると、AIの文によく出ると言われる言い回しに番号つきの印が付きます。言い換えを選ぶと、下に直した文ができます。</p>
+  <div class="notice" role="note">
+    <ul>
+      <li>AIが書いたかどうかは判定しません。人の文にも同じ言い回しは出ます。</li>
+      <li>印が付いても間違いではありません。自分の言い方なら、そのままで。</li>
+      <li>貼った文は保存も送信もしません。</li>
+    </ul>
+  </div>
+  <div class="cols">
+    <section class="panel a-in" aria-labelledby="h-in">
+      <h2 id="h-in">① 文を貼る</h2>
+      <label class="f" for="src">AIに書かせた文（5,000字まで）</label>
+      <textarea id="src" maxlength="5000" placeholder="ここに貼ってください"></textarea>
+      <div class="row">
+        <button type="button" id="sample">見本の文を入れる</button>
+        <button type="button" id="clear">消す</button>
+        <span class="small" id="len">0字</span>
+      </div>
+    </section>
+    <section class="panel a-mk" aria-labelledby="h-mk">
+      <h2 id="h-mk">② 印のついた文</h2>
+      <div id="marked"><p class="empty">文を貼ると、ここに印のついた文が出ます。</p></div>
+    </section>
+    <section class="panel side" aria-labelledby="h-ls">
+      <h2 id="h-ls">③ 見直し候補と言い換え</h2>
+      <div id="summary" aria-live="polite"><p class="empty">まだ文が貼られていません。</p></div>
+      <ol class="items" id="items"></ol>
+    </section>
+    <section class="panel a-fx" aria-labelledby="h-fx">
+      <h2 id="h-fx">④ 直した文</h2>
+      <p class="small">言い換えは決まった候補を差し込むだけです。前後のつながりがおかしくなったら、手で直してください。</p>
+      <label class="f" for="fixed">直した文（ここで手直しもできます）</label>
+      <textarea id="fixed" rows="6"></textarea>
+      <div class="row">
+        <button type="button" class="primary" id="copy">直した文をコピー</button>
+        <button type="button" id="reset">言い換えを全部元に戻す</button>
+      </div>
+      <p class="copied" id="copied" aria-live="polite"></p>
+    </section>
+  </div>
+  <footer class="mw-footer">
+    <p>みちAIワークス（MICHI AI WORKS）／代表 田中　泉</p>
+    <p>運営: <a href="https://michi-portfolio.vercel.app/" rel="noopener">みちAIワークス 公式サイト</a>（https://michi-portfolio.vercel.app/ ）／ お問い合わせ: <a href="mailto:nncf123nncf@gmail.com">nncf123nncf@gmail.com</a></p>
+    <p>貼った文と直した文は、お使いの端末のブラウザの中だけで扱い、保存も送信もしません。ページを閉じると消えます。アクセス解析（Cloudflare Web Analytics）で、ページの閲覧状況（閲覧数・参照元・ブラウザの種類など）を計測しています。</p>
+    <p>ログイン・会員登録・パスワードの入力を求めることはありません。</p>
+  </footer>
+</main>
+
+<script id="core">
+var AP = (function () {
+  var MAX = 5000;
+  var CATS = { A: '締めの決まり文句', B: '言い切り・まとめの型', C: 'ぼやけた飾り言葉', D: 'かたすぎる丁寧さ', E: '見た目の癖' };
+  var CUT = '削る', KEEP = 'このまま';
+
+  // 言い回しの一覧（仕様カード第4節）。alts は文字列（$1 などで取り込み）か、一致した文字列を受けて候補を返す関数
+  var PHRASES = [
+    { id: 'A1', re: 'いかがでした(?:か|でしょうか)', alts: [CUT], note: '記事の締めによく出る形です' },
+    { id: 'A2', re: '([てで])みてはいかがでしょうか', alts: ['$1みてください', '$1ください'], note: '遠回しな勧め方です' },
+    { id: 'A3', re: 'ぜひ、?お気軽に', alts: ['お気軽に', 'いつでもどうぞ'], note: '「ぜひ」と「お気軽に」が重なっています' },
+    { id: 'A4', re: '(?:参考になれば|参考になったら|お役に立てれば|お役に立てたら)幸いです', alts: [CUT], note: '締めの決まり文句です' },
+    { id: 'A5', re: '心より(?:お待ち|おまち)(?:しております|いたしております|しています)', alts: ['お待ちしています', '会えるのを楽しみにしています'], note: 'お知らせの締めの定型です' },
+    { id: 'A6', re: '素敵な[^。！!？?\\n]{1,8}をお過ごしください', alts: [CUT], note: '締めの定型です。自分の一言に替えても' },
+    { id: 'B1', re: '(?:と言え|といえ)るでしょう', alts: ['です', 'だと思います'], note: '言い切りを避ける型です' },
+    { id: 'B2', re: 'ではないでしょうか', alts: ['だと思います', CUT], note: '問いかけで締める型です' },
+    { id: 'B3', re: 'ことが[^。！!？?\\n]{0,15}?(?:重要|大切|大事)です', alts: ['ことを大事にしています', 'ことを心がけています'], note: '主張を「重要です」でまとめる型です' },
+    { id: 'B4', re: '(?:鍵|カギ|かぎ)とな(り(?:ます|ました)|る)', alts: [function (m) { return [/なる$/.test(m) ? '決め手になる' : /ました$/.test(m) ? '決め手でした' : '決め手です']; }], note: 'まとめの比喩です' },
+    { id: 'B5', re: 'において', alts: ['で'], note: 'かたい書き言葉です' },
+    { id: 'B6', re: 'に関して(は?)', alts: ['について$1'], note: 'かたい書き言葉です' },
+    { id: 'B7', re: 'することで', alts: ['すると'], note: '説明文の型です' },
+    { id: 'B8', re: '最大限に引き出([すしせ])', alts: ['生か$1'], note: '決まった言い回しです' },
+    { id: 'B9', re: '活用(した|して|する|しま(?:す|した)|し|できる|できます)', alts: [function (m) {
+        var t = { 'した': '使った', 'して': '使って', 'する': '使う', 'します': '使います', 'しました': '使いました', 'し': '使い', 'できる': '使える', 'できます': '使えます' }[m.slice(2)];
+        return [t]; }], note: '説明文によく出る言葉です' },
+    { id: 'B10', re: '提供(?:いたしております|しております|いたします|しています|します)', alts: ['ご用意しています', '出しています'], note: '会社の文の言葉です' },
+    { id: 'B11', re: 'を実現(します|する|できます|できる)', alts: [function (m) { return [/ます$/.test(m) ? 'ができます' : 'ができる']; }], note: '説明文によく出る言葉です' },
+    { id: 'C1', re: '(?:さまざま|様々|様様)な', alts: [CUT], note: '何がいくつあるかを具体的に並べると伝わります' },
+    { id: 'C2', re: '幅広い', alts: [CUT], note: '何がいくつあるかを具体的に並べると伝わります' },
+    { id: 'C3', re: '(?:特別な|至福の)ひととき(?:を)?', alts: [CUT], note: 'よく出る飾りの言葉です' },
+    { id: 'C4', re: '心(?:温|あたた)まる', alts: [CUT], note: 'よく出る飾りの言葉です' },
+    { id: 'C5', re: 'ワンランク上の', alts: [CUT], note: 'よく出る飾りの言葉です' },
+    { id: 'C6', re: '魅力(的な|的)?', alts: [function (m) { return m === '魅力' ? ['良さ', CUT] : [CUT]; }], note: '何が良いかを具体的に書くと伝わります' },
+    { id: 'C7', re: '彩(?:る|り|られ|って)|いろどり', notAfter: '[色光淡水]', alts: [CUT], note: 'よく出る飾りの言葉です' },
+    { id: 'C8', re: '演出(?:してくれる|してくれます|します|する|して|し)?', alts: [CUT], note: 'よく出る飾りの言葉です' },
+    { id: 'C9', re: '五感で', alts: [CUT], note: 'よく出る飾りの言葉です' },
+    { id: 'C10', re: 'まさに', alts: [CUT], note: '強調の言葉です' },
+    { id: 'D1', re: 'させていただき(ます|ました)', from: 2, alts: [function (m) { return /ました$/.test(m) ? ['しました', 'いたしました'] : ['します', 'いたします']; }], note: '何度も出ています（2回目から印を付けています）' },
+    { id: 'D2', re: 'となっております', alts: ['です'], note: 'かたい言い方です' },
+    { id: 'D3', re: 'でございます', from: 2, alts: ['です'], note: '何度も出ています（2回目から印を付けています）' },
+    { id: 'D4', re: 'いただけます', alts: ['できます'], note: 'お客さんが主語なら「できます」で通じます' },
+    { id: 'D5', re: '誠に', alts: [CUT], note: 'かたい言い方です' }
+  ];
+  PHRASES.forEach(function (p) { p.cat = p.id.charAt(0); p.rx = new RegExp(p.re, 'g'); p.one = new RegExp('^(?:' + p.re + ')$'); if (p.notAfter) p.na = new RegExp(p.notAfter); });
+
+  // 全角英数・記号を半角に寄せる（1文字→1文字なので位置は変わらない）
+  function norm(s) {
+    return s.replace(/[！-～]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); }).replace(/　/g, ' ');
+  }
+  // URL・メールの中を同じ長さの空白で伏せる
+  function maskLinks(s) {
+    return s.replace(/https?:\/\/[^\s<>"'、。）)」]+|www\.[^\s<>"'、。）)」]+|[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, function (m) { return new Array(m.length + 1).join(' '); });
+  }
+  function lineOf(text, pos) { var n = 1; for (var i = 0; i < pos; i++) if (text.charCodeAt(i) === 10) n++; return n; }
+
+  function altsFor(p, m) {
+    var out = [];
+    p.alts.forEach(function (a) {
+      if (typeof a === 'function') out = out.concat(a(m));
+      else if (a === CUT) out.push(CUT);
+      else out.push(m.replace(p.one, a));
+    });
+    return out;
+  }
+
+  function scan(text) {
+    text = String(text || '').slice(0, MAX);
+    var w = maskLinks(norm(text)), found = [];
+    PHRASES.forEach(function (p) {
+      var n = 0, m; p.rx.lastIndex = 0;
+      while ((m = p.rx.exec(w))) {
+        if (!m[0]) { p.rx.lastIndex++; continue; }
+        if (p.na && m.index > 0 && p.na.test(w.charAt(m.index - 1))) continue;
+        n++;
+        if (p.from && n < p.from) continue;
+        var t = text.substr(m.index, m[0].length);
+        found.push({ id: p.id, cat: p.cat, start: m.index, end: m.index + m[0].length, text: t, alts: altsFor(p, m[0]), note: p.note });
+      }
+    });
+    scanLooks(text, w, found);
+    // 重なりは、先に出てくる長い方を残す
+    found.sort(function (a, b) { return a.start - b.start || (b.end - b.start) - (a.end - a.start); });
+    var kept = [], last = -1;
+    found.forEach(function (f) { if (f.start >= last) { kept.push(f); last = f.end; } });
+    kept.forEach(function (f, i) { f.n = i + 1; f.line = lineOf(text, f.start); });
+    var byCat = {}; kept.forEach(function (f) { byCat[f.cat] = (byCat[f.cat] || 0) + 1; });
+    return { text: text, items: kept, byCat: byCat };
+  }
+
+  // 見た目の癖（仕様 第2-3節）
+  function scanLooks(text, w, found) {
+    function add(id, s, e, alts, note) { found.push({ id: id, cat: 'E', start: s, end: e, text: text.slice(s, e), alts: alts, note: note }); }
+    var m, re;
+    re = /^(#{1,6}) /gm; while ((m = re.exec(w))) add('E1', m.index, m.index + m[0].length, [CUT], '見出しの記号（#）の消し忘れです');
+    re = /^-{3,}[ \t]*$/gm; while ((m = re.exec(w))) add('E1', m.index, m.index + m[0].length, [CUT], '区切り線の記号（---）の消し忘れです');
+    re = /^[ \t]*[-*] (?=\S)/gm; while ((m = re.exec(w))) add('E1', m.index, m.index + m[0].length, [CUT], '箇条書きの記号の消し忘れです');
+    re = /\*\*/g; while ((m = re.exec(w))) add('E1', m.index, m.index + 2, [CUT], '太字の記号（**）の消し忘れです');
+    re = /——|―+|—+/g; while ((m = re.exec(w))) add('E2', m.index, m.index + m[0].length, [CUT, '、'], '長いダッシュはAIの文によく出ると言われます');
+    var ex = []; re = /!/g; while ((m = re.exec(w))) ex.push(m.index);
+    if (ex.length >= 5) ex.forEach(function (i) { add('E3', i, i + 1, [CUT], '「！」が' + ex.length + '個あります。減らしてみてください'); });
+    var br = []; re = /【[^【】\n]{1,30}】/g; while ((m = re.exec(w))) br.push([m.index, m.index + m[0].length]);
+    if (br.length >= 3) br.forEach(function (b) { add('E5', b[0], b[1], [text.slice(b[0] + 1, b[1] - 1)], '【】の見出しが' + br.length + 'つあります'); });
+    // 同じ文末が3文以上続く（文末＝区切りの前の2字）
+    var sents = [], sre = /[^。!?\n]+[。!?]*/g;
+    while ((m = sre.exec(w))) {
+      var body = m[0].replace(/[。!?]+$/, ''), core = body.replace(/[ \t]+$/, '');
+      if (core.length >= 4) sents.push({ end: core.slice(-2), s: m.index + core.length - 2, e: m.index + core.length });
+      else sents.push({ end: null });
+    }
+    var run = [];
+    function flush() { if (run.length >= 3) run.forEach(function (x) { add('E4', x.s, x.e, [], '「〜' + x.end + '」で終わる文が' + run.length + 'つ続いています。文末を変えてみてください'); }); run = []; }
+    sents.forEach(function (s) { if (s.end && run.length && run[0].end === s.end) run.push(s); else { flush(); if (s.end) run.push(s); } });
+    flush();
+  }
+
+  // choices: { n: 選んだ候補の文字列 }。後ろから差し替える
+  function applyChoices(r, choices) {
+    var t = r.text;
+    for (var i = r.items.length - 1; i >= 0; i--) {
+      var f = r.items[i], c = choices[f.n];
+      if (c === undefined || c === null || c === KEEP) continue;
+      t = t.slice(0, f.start) + (c === CUT ? '' : c) + t.slice(f.end);
+    }
+    return t;
+  }
+
+  var SAMPLE = '【秋の新作のお知らせ】\n秋の訪れとともに、パン工房みほんでは、さまざまな秋の味覚を活用した新作パンをご用意いたしました！\n国産小麦と旬のさつまいもを使った「おいもの塩パン」は、まさに至福のひとときを演出してくれる一品と言えるでしょう。\n素材の魅力を最大限に引き出すことが、私たちにとって何よりも重要です。\nぜひお気軽に、ご来店してみてはいかがでしょうか。\n皆様のご来店を心よりお待ちしております！';
+
+  return { MAX: MAX, CATS: CATS, CUT: CUT, KEEP: KEEP, PHRASES: PHRASES, norm: norm, maskLinks: maskLinks, scan: scan, applyChoices: applyChoices, SAMPLE: SAMPLE };
+})();
+if (typeof module !== 'undefined') module.exports = AP;
+</script>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var src = $('src'), fixed = $('fixed'), marked = $('marked'), items = $('items'), summary = $('summary'), copied = $('copied');
+  var R = AP.scan(''), choices = {}, timer = null;
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
+
+  function run() {
+    R = AP.scan(src.value); choices = {};
+    $('len').textContent = src.value.length.toLocaleString() + '字';
+    render(); updateFixed();
+  }
+  function render() {
+    marked.textContent = ''; items.textContent = ''; summary.textContent = '';
+    if (!R.text.trim()) { marked.appendChild(el('p', 'empty', '文を貼ると、ここに印のついた文が出ます。')); summary.appendChild(el('p', 'empty', 'まだ文が貼られていません。')); return; }
+    // 印のついた文
+    var pre = el('p', 'marked'), pos = 0;
+    R.items.forEach(function (f) {
+      if (f.start > pos) pre.appendChild(document.createTextNode(R.text.slice(pos, f.start)));
+      var s = el('span', 'mk'); s.id = 'mk-' + f.n; s.tabIndex = -1;
+      s.appendChild(el('span', 'n', String(f.n)));
+      s.appendChild(document.createTextNode(f.text));
+      pre.appendChild(s); pos = f.end;
+    });
+    if (pos < R.text.length) pre.appendChild(document.createTextNode(R.text.slice(pos)));
+    marked.appendChild(pre);
+    // 件数
+    if (!R.items.length) { summary.appendChild(el('p', 'empty', '一覧にある言い回しは見つかりませんでした。')); return; }
+    var c = el('p', 'count'); c.appendChild(document.createTextNode('見直し候補 ')); c.appendChild(el('b', '', String(R.items.length))); c.appendChild(document.createTextNode(' か所'));
+    summary.appendChild(c);
+    var ul = el('ul', 'chips');
+    Object.keys(AP.CATS).forEach(function (k) { if (R.byCat[k]) ul.appendChild(el('li', '', AP.CATS[k] + ' ' + R.byCat[k])); });
+    summary.appendChild(ul);
+    // 一覧
+    R.items.forEach(function (f) {
+      var li = el('li'); li.id = 'it-' + f.n;
+      var h = el('div', 'it-head');
+      h.appendChild(el('span', 'it-n', String(f.n)));
+      h.appendChild(el('span', 'it-text', '「' + f.text.replace(/\n/g, ' ') + '」'));
+      h.appendChild(el('span', 'it-cat', AP.CATS[f.cat]));
+      h.appendChild(el('span', 'it-line', f.line + '行目'));
+      li.appendChild(h);
+      li.appendChild(el('p', 'it-note', f.note));
+      var alts = el('div', 'alts'); alts.setAttribute('role', 'group'); alts.setAttribute('aria-label', f.n + '番の言い換え');
+      f.alts.concat([AP.KEEP]).forEach(function (a) {
+        var b = el('button', '', a === AP.CUT || a === AP.KEEP ? a : '→ ' + a); b.type = 'button';
+        b.setAttribute('aria-pressed', 'false'); b.dataset.n = f.n; b.dataset.v = a;
+        alts.appendChild(b);
+      });
+      var j = el('button', 'it-jump', '文の中で見る'); j.type = 'button'; j.dataset.jump = f.n;
+      alts.appendChild(j);
+      li.appendChild(alts);
+      items.appendChild(li);
+    });
+  }
+  function updateFixed() { fixed.value = AP.applyChoices(R, choices); copied.textContent = ''; }
+
+  items.addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.jump) {
+      var mk = $('mk-' + b.dataset.jump); if (!mk) return;
+      mk.scrollIntoView({ behavior: 'smooth', block: 'center' }); mk.focus({ preventScroll: true });
+      mk.classList.add('flash'); setTimeout(function () { mk.classList.remove('flash'); }, 900); return;
+    }
+    var n = +b.dataset.n, v = b.dataset.v, on = choices[n] === v;
+    if (on) delete choices[n]; else choices[n] = v;
+    b.parentNode.querySelectorAll('button[data-v]').forEach(function (x) { x.setAttribute('aria-pressed', String(!on && x === b)); });
+    var mk2 = $('mk-' + n); if (mk2) mk2.classList.toggle('done', !on);
+    updateFixed();
+  });
+  src.addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(run, 150); });
+  $('sample').addEventListener('click', function () { src.value = AP.SAMPLE; run(); });
+  $('clear').addEventListener('click', function () { src.value = ''; run(); src.focus(); });
+  $('reset').addEventListener('click', function () {
+    choices = {}; items.querySelectorAll('button[data-v]').forEach(function (x) { x.setAttribute('aria-pressed', 'false'); });
+    marked.querySelectorAll('.mk.done').forEach(function (x) { x.classList.remove('done'); }); updateFixed();
+  });
+  $('copy').addEventListener('click', function () {
+    var t = fixed.value;
+    if (!t) { copied.textContent = 'コピーする文がありません。'; return; }
+    function manual() { fixed.focus(); fixed.select(); try { fixed.setSelectionRange(0, t.length); } catch (e) { } copied.textContent = '自動でコピーできませんでした。選択された文を長押しして「コピー」を選んでください。'; }
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(t).then(function () { copied.textContent = '直した文をコピーしました（' + t.length.toLocaleString() + '字）。'; }, manual);
+    } else manual();
+  });
+  run();
+})();
+</script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js"
+        data-cf-beacon='{"token": "b4c9f7e78daf4edb84ef52b88633f649"}'></script>
+</body>
+</html>
