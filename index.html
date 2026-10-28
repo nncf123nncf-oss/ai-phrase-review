@@ -329,10 +329,13 @@ if (typeof module !== 'undefined') module.exports = AP;
       items.appendChild(li);
     });
   }
-  function updateFixed() { fixed.value = AP.applyChoices(R, choices); copied.textContent = ''; dirty = false; }
+  // 直した文の欄は中身の高さに合わせて伸ばす（狭い画面でも全文が見えるように）
+  function fitFixed() { fixed.style.height = 'auto'; fixed.style.height = (fixed.scrollHeight + fixed.offsetHeight - fixed.clientHeight) + 'px'; }
+  function updateFixed() { fixed.value = AP.applyChoices(R, choices); copied.textContent = ''; dirty = false; fitFixed(); }
   // 直した文を手で直したあとに言い換えを選ぶと、手直しが消える。その前に確かめる
   var dirty = false;
-  fixed.addEventListener('input', function () { dirty = true; });
+  fixed.addEventListener('input', function () { dirty = true; fitFixed(); });
+  window.addEventListener('resize', fitFixed);
   function okToOverwrite() { return !dirty || window.confirm('手で直した分は消えて、言い換えを反映した文に置き換わります。続けますか？'); }
 
   items.addEventListener('click', function (e) {
